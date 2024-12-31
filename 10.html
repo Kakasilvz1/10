@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardápio Lanchonete RWS</title>
+    <style>
+        /* Estilos para a interface */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #ff6347;
+        }
+        .card {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin: 20px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: scale(1.05);
+        }
+        .card img {
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+        }
+        .card-title {
+            font-size: 1.5em;
+            margin: 10px 0;
+        }
+        .card-price {
+            font-size: 1.2em;
+            color: #ff6347;
+        }
+        .card-description {
+            font-size: 1em;
+            margin: 10px 0;
+            color: #666;
+        }
+        .card button {
+            background-color: #ff6347;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .card button:hover {
+            background-color: #ff4500;
+        }
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .order {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f1f1f1;
+        }
+        .total {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lanchonete RWS</h1>
+        <h2>Nosso Cardápio</h2>
+        <div class="grid" id="productList"></div>
+
+        <div class="order">
+            <h2>Pedido</h2>
+            <label for="customerName">Nome do Cliente:</label>
+            <input type="text" id="customerName" placeholder="Insira o nome do cliente">
+            <label for="deliveryMode">Modo de Entrega:</label>
+            <select id="deliveryMode" onchange="toggleAddressField()">
+                <option value="Retirada">Retirada</option>
+                <option value="Entrega">Entrega</option>
+            </select>
+            <div id="addressField" style="display: none;">
+                <label for="deliveryAddress">Endereço:</label>
+                <input type="text" id="deliveryAddress" placeholder="Insira o endereço de entrega">
+                <label for="deliveryLocation">Local de Entrega:</label>
+                <select id="deliveryLocation" onchange="updateOrderList()">
+                    <option value="">Selecione um local</option>
+                    <option value="Palmeirinha">Palmeirinha</option>
+                    <option value="Barro Vermelho">Barro Vermelho</option>
+                    <option value="Retiro Velho">Retiro Velho</option>
+                    <option value="Guaribas">Guaribas</option>
+                </select>
+            </div>
+            <ul id="orderList"></ul>
+            <div class="total">Total: R$ <span id="totalValue">0.00</span></div>
+            <div id="deliveryFeeInfo" style="text-align: right;"></div>
+            <button onclick="saveOrder()">Salvar Pedido</button>
+        </div>
+    </div>
+
+    <script>
+        let order = {};
+        let total = 0;
+        let deliveryFee = 0;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProducts();
+        });
+
+        function loadProducts() {
+            const products = JSON.parse(localStorage.getItem('products')) || [];
+            document.getElementById('productList').innerHTML = '';
+            products.forEach(product => addProductToDOM(product));
+        }
+
+        function addProductToDOM(product) {
+            const productListItem = document.createElement('div');
+            productListItem.className = 'card';
+            productListItem.innerHTML = `
+                <img src="https://via.placeholder.com/300x200" alt="${product.name}">
+                <div class="card-title">${product.name}</div>
+                <div class="card-price">R$ <span id="price-${product.id}">${product.price.toFixed(2)}</span></div>
+                <div class="card-description">${product.description}</div>
+                <button onclick="addToOrder('${product.name}', ${product.price})">Adicionar ao Pedido</button>
+            `;
+            document.getElementById('productList').appendChild(productListItem);
+        }
+
+        function addToOrder(item, price) {
+            if (order[item]) {
+                order[item].quantity++;
+            } else {
+                order[item] = { quantity: 1, price: price };
+            }
+            updateOrderList();
+        }
+
+        function updateOrderList() {
+            const orderList = document.getElementById('orderList');
+            orderList.innerHTML = '';
+            for (const item in order) {
+                const li = document.createElement('li');
+                li.textContent = `${item}: ${order[item].quantity} x R$ ${order[item].price.toFixed(2)}`;
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Excluir';
+                deleteButton.onclick = () => {
+                    total -= order[item].quantity * order[item].price;
+                    delete order[item];
+                    updateOrderList();
+                };
+                li.appendChild(deleteButton);
+                orderList.appendChild(li);
+            }
+
+            const deliveryMode = document.getElementById('deliveryMode').value;
+            const deliveryLocation = document.getElementById('deliveryLocation').value;
+            deliveryFee = 0; // Reset delivery fee
+
+            // Calcular a taxa de entrega com base no local selecionado
+            if (deliveryMode === 'Entrega') {
+                if (deliveryLocation === 'Guaribas' || deliveryLocation === 'Retiro Velho') {
+                    deliveryFee = 5.00;
+                } else if (deliveryLocation === 'Barro Vermelho' || deliveryLocation === 'Palmeirinha') {
+                    deliveryFee = 2.00;
+                }
+            }
+
+            const totalWithoutFee = Object.values(order).reduce((acc, item) => acc + item.quantity * item.price, 0);
+            total = totalWithoutFee + deliveryFee;
+            document.getElementById('deliveryFeeInfo').textContent = deliveryMode === 'Entrega' ? `Taxa de entrega: R$ ${deliveryFee.toFixed(2)}` : '';
+            document.getElementById('totalValue').textContent = total.toFixed(2);
+        }
+
+        function toggleAddressField() {
+            const deliveryMode = document.getElementById('deliveryMode').value;
+            const addressField = document.getElementById('addressField');
+            if (deliveryMode === 'Entrega') {
+                addressField.style.display = 'block';
+            } else {
+                addressField.style.display = 'none';
+                document.getElementById('deliveryAddress').value = '';
+                document.getElementById('deliveryLocation').value = '';
+            }
+            updateOrderList();
+        }
+
+        function saveOrder() {
+            const customerName = document.getElementById('customerName').value.trim();
+            const deliveryMode = document.getElementById('deliveryMode').value;
+            const deliveryAddress = document.getElementById('deliveryAddress').value.trim();
+            const deliveryLocation = document.getElementById('deliveryLocation').value;
+            if (customerName === '') {
+                alert('Por favor, insira o nome do cliente.');
+                return;
+            }
+            if (deliveryMode === 'Entrega' && (deliveryAddress === '' || deliveryLocation === '')) {
+                alert('Por favor, insira o endereço de entrega e local.');
+                return;
+            }
+            if (Object.keys(order).length === 0) {
+                alert('O pedido está vazio.');
+                return;
+            }
+            const currentDate = new Date();
+            const orderDate = currentDate.toLocaleString('pt-BR');
+            const savedOrders = JSON.parse(localStorage.getItem('savedOrders')) || [];
+            savedOrders.push({
+                customerName: customerName,
+                deliveryMode: deliveryMode,
+                deliveryAddress: deliveryAddress,
+                deliveryLocation: deliveryLocation,
+                items: { ...order },
+                total: total,
+                date: orderDate,
+                printCount: 0 // Inicialmente, o pedido não foi impresso
+            });
+            localStorage.setItem('savedOrders', JSON.stringify(savedOrders));
+            order = {};
+            total = 0;
+            updateOrderList();
+            document.getElementById('customerName').value = '';
+            document.getElementById('deliveryMode').value = 'Retirada';
+            toggleAddressField();
+            location.reload(); // Adiciona esta linha para recarregar a página após salvar o pedido
+        }
+    </script>
+</body>
+</html>
